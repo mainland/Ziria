@@ -11,6 +11,7 @@ module Language.Ziria.Parser.Tokens (
 
 import Data.Symbol
 import Text.PrettyPrint.Mainland
+import Text.PrettyPrint.Mainland.Class
 
 data Token = Teof
            | TintConst (String, Integer)

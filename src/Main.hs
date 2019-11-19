@@ -28,6 +28,7 @@ import System.Exit (exitFailure)
 import System.IO
 import Text.PrettyPrint.HughesPJ
 import qualified Text.PrettyPrint.Mainland as GMPretty
+import qualified Text.PrettyPrint.Mainland.Class as GMPretty
 -- import Text.Show.Pretty (dumpStr)
 import qualified Language.C.Syntax as C
 
