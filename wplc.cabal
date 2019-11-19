@@ -26,9 +26,77 @@ Executable wplc
   -- as the include dir.
   default-language: Haskell98
   other-modules:
-    Language.Ziria.Parser.Lexer
+    AbsInt
+    Analysis.DataFlow
+    Analysis.RangeAnal
+    AstComp
+    AstExpr
+    AstExprTypes
+    AstFM
+    AstLabelled
+    AstName
+    AstUnlabelled
+    AutoLUT
+    CardAnalysis
+    CgBoundsCheck
+    CgCall
+    CgCmdDom
+    CgExpr
+    CgFun
+    CgHeader
+    CgLUT
+    CgMonad
+    CgOpt
+    CgPrint
+    CgProgram
+    CgRuntime
+    CgSetupThreads
+    CgTypes
+    CgValDom
+    CtCall
+    CtComp
+    CtExpr
+    GenSym
+    Interpreter
+    LUTAnalysis
+    LUTBasicTypes
+    Language.Ziria.Parser
+    Language.Ziria.Parser.Alex
     Language.Ziria.Parser.CamlParser
+    Language.Ziria.Parser.Exceptions
+    Language.Ziria.Parser.Lexer
+    Language.Ziria.Parser.Monad
     Language.Ziria.Parser.Parser
+    Language.Ziria.Parser.Tokens
+    Lens
+    NameEnv
+    Opts
+    Orphans
+    Outputable
+    PassComp
+    PassExpr
+    PassFold
+    PassFoldDebug
+    PassFoldM
+    PassOptMit
+    PassPipeline
+    PpComp
+    PpExpr
+    Rebindables
+    Rename
+    SparseArray
+    Tc
+    TcMonad
+    TcRename
+    TcUnify
+    Typecheck
+    Utils
+    VecM
+    VecRewriter
+    VecSF
+    VecScaleDn
+    VecScaleUp
+    Vectorize
 
   default-extensions: DoAndIfThenElse PatternGuards
   other-extensions: TemplateHaskell, QuasiQuotes
