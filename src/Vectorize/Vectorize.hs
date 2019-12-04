@@ -29,7 +29,7 @@ import qualified AstLabelled as AstL
 
 import Outputable
 
-import Text.PrettyPrint.HughesPJ
+import Text.PrettyPrint.HughesPJ hiding ((<>))
 
 import PpComp
 import Outputable
@@ -69,7 +69,7 @@ import Debug.Trace
 -------------------------------------------------------------------------------}
 
 -- | Pack information we want to capture as we traverse AST
-data VectPack 
+data VectPack
   = VectPack { vp_comp     :: LComp
              , vp_card     :: Card
              , vp_self_dvr :: DelayedVectRes
@@ -80,7 +80,7 @@ data VectPack
              , vp_tyout    :: Ty }
 
 pprVectPack :: VectPack -> Doc
-pprVectPack (VectPack {..}) 
+pprVectPack (VectPack {..})
   = vcat [ text "vp_card  = " <+> text (show vp_card)
          , text "vp_cty   = " <+> ppr vp_cty
          , text "vp_tyin  = " <+> ppr vp_tyin
@@ -95,27 +95,27 @@ computeVectTop dfs x =
 
 {- Note [Initial Vectorization Context]
    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   The in initial CtxForVect value can well be CtxUnrestricted but this 
-   very quickly leads to explosion, particularly for transformers that are 
+   The in initial CtxForVect value can well be CtxUnrestricted but this
+   very quickly leads to explosion, particularly for transformers that are
    connected to each other like:
              read >>> t1 >>> t2 >>> ... >>> tn >>> write
    So we are instead starting from CtxExCompLeft.
 -}
 
 comp_vect :: DynFlags -> CtxForVect -> LComp -> VecM DVRCands
-comp_vect dfs vctx c = do 
-  verbose dfs (text "^^^" <+> 
-               text (compShortName c) <+> 
+comp_vect dfs vctx c = do
+  verbose dfs (text "^^^" <+>
+               text (compShortName c) <+>
                parens (ppr loc)
               )
   r <- comp_vect0 dfs vpack (unComp c)
   return $!r
-  where 
+  where
     vpack = VectPack { vp_comp     = c
-                     , vp_card     = compInfo c 
+                     , vp_card     = compInfo c
                      , vp_vctx     = vctx
                      , vp_cty      = cty
-                     , vp_loc      = loc 
+                     , vp_loc      = loc
                      , vp_self_dvr = mkSelf c inty outty
                      , vp_tyin     = inty
                      , vp_tyout    = outty }
@@ -123,17 +123,17 @@ comp_vect dfs vctx c = do
     loc   = compLoc c
     inty  = inTyOfCTy cty
     outty = yldTyOfCTy cty
- 
+
 
 
 
 comp_vect0 :: DynFlags -> VectPack -> LComp0 -> VecM DVRCands
 
--- | Variable 
+-- | Variable
 comp_vect0 dfs (VectPack {..}) (Var x)
   = lookupCVarBind x >>= comp_vect dfs vp_vctx
 
--- | BindMany 
+-- | BindMany
 comp_vect0 dfs pack@(VectPack {..}) (BindMany c1 xs_cs) = do
   let sfs = compSFDD vp_card vp_tyin vp_tyout
       css = c1 : map snd xs_cs
@@ -142,7 +142,7 @@ comp_vect0 dfs pack@(VectPack {..}) (BindMany c1 xs_cs) = do
   -- Compute direct down-vectorizations
 
   verbose dfs $ vcat [ text "BindMany vectorization"
-                     , nest 2 $ pprVectPack pack 
+                     , nest 2 $ pprVectPack pack
                      ]
 
   verbose dfs $ text "BindMany: before direct."
@@ -153,16 +153,16 @@ comp_vect0 dfs pack@(VectPack {..}) (BindMany c1 xs_cs) = do
   direct_vss <- vect_comp_dd dfs vp_comp sfs
 
   verbose dfs $ text "BindMany: before recursive."
-              
+
   -- Compute recursive vectorizations
   vss <- mapM (comp_vect dfs vp_vctx) css
 
-  verbose dfs $ 
+  verbose dfs $
     vcat [ text "Bindmany: after recursive"
-         , text "Temp vss lengths = " 
-         , nest 2 $ vcat $ map (\(v,c) -> 
-                     vcat [ text "Computation: " <+> ppr c 
-                          , text "Candidate length: " <+> 
+         , text "Temp vss lengths = "
+         , nest 2 $ vcat $ map (\(v,c) ->
+                     vcat [ text "Computation: " <+> ppr c
+                          , text "Candidate length: " <+>
                                (int (Map.size v)) ]) (zip vss css)
          ]
 
@@ -186,21 +186,21 @@ comp_vect0 dfs (VectPack {..}) (Par p c1 c2)
   = mapDVRCands (prependReadSrc vp_loc p orig_ty) <$> comp_vect dfs vp_vctx c2
   | WriteSnk orig_ty <- unComp c2
   = mapDVRCands (appendWriteSnk vp_loc p orig_ty) <$> comp_vect dfs vp_vctx c1
-  | otherwise 
+  | otherwise
   = let is_c1 = isComputer (ctComp c1)
         is_c2 = isComputer (ctComp c2)
-        ctx1  = if is_c2 then join_ctx vp_vctx CtxExCompRight -- `join_ctx` vp_vctx 
+        ctx1  = if is_c2 then join_ctx vp_vctx CtxExCompRight -- `join_ctx` vp_vctx
                 else vp_vctx
-        ctx2  = if is_c1 then join_ctx vp_vctx CtxExCompLeft  -- `join_ctx` vp_vctx 
+        ctx2  = if is_c1 then join_ctx vp_vctx CtxExCompLeft  -- `join_ctx` vp_vctx
                 else vp_vctx
     in
     do verbose dfs $ text (show vp_vctx ++ " => " ++ show ctx1)
-       verbose dfs $ text (show vp_vctx ++ " => " ++ show ctx2) 
+       verbose dfs $ text (show vp_vctx ++ " => " ++ show ctx2)
        vcs1 <- comp_vect dfs ctx1 c1 >>= logCands dfs False ((displayLoc . locOf . compLoc) c1)
        vcs2 <- comp_vect dfs ctx2 c2 >>= logCands dfs False ((displayLoc . locOf . compLoc) c2)
        let !res = combineData p vp_loc vcs1 vcs2
-    
-       let dbg_doc = vcat $ 
+
+       let dbg_doc = vcat $
                [ text "Left candidates: " <+> ppr (compLoc c1)
                , nest 2 $ pprDVRess vcs1
                , nest 2 $ text (show ctx1)
@@ -209,7 +209,7 @@ comp_vect0 dfs (VectPack {..}) (Par p c1 c2)
                , nest 2 $ pprDVRess vcs2
                , nest 2 $ text (show ctx2)
                , nest 4 $ ppr c2
-               , text "Final candidates" 
+               , text "Final candidates"
                , nest 2 $ pprDVRess res
                ]
 
@@ -218,13 +218,13 @@ comp_vect0 dfs (VectPack {..}) (Par p c1 c2)
        warnIfEmptyDoc dfs vp_comp res "Par" dbg_doc
 
        return res
-  where 
+  where
      -- If the context is unrestricted then just choose whatever we are (y)
-     join_ctx CtxUnrestricted y = y 
+     join_ctx CtxUnrestricted y = y
      -- If the context says there's a computer to the left then it does not matter what
      -- we say. Here is the example:
-     --    c1 >>> repeat { t >>> c } 
-     -- The context says there's a computer to the left (c1). 
+     --    c1 >>> repeat { t >>> c }
+     -- The context says there's a computer to the left (c1).
      -- But we (t) are to the left of (c). This does not matter however, since
      -- the program is really equivalent (for vectorization purposes) to:
      --    c1 >>> t >>> repeat c
@@ -236,10 +236,10 @@ comp_vect0 dfs (VectPack {..}) (Par p c1 c2)
 
 {------------------------------------------------------------------------------}
 
-comp_vect0 dfs (VectPack {..}) (LetE x fi e c1) = 
+comp_vect0 dfs (VectPack {..}) (LetE x fi e c1) =
   mapDVRCands (updDVRComp $ cLetE vp_loc x fi e) <$> comp_vect dfs vp_vctx c1
 
-comp_vect0 dfs (VectPack {..}) (LetERef x mbe c1) = 
+comp_vect0 dfs (VectPack {..}) (LetERef x mbe c1) =
   mapDVRCands (updDVRComp $ cLetERef vp_loc x mbe) <$> comp_vect dfs vp_vctx c1
 
 comp_vect0 dfs (VectPack {..}) (LetHeader fdef c1) =
@@ -268,7 +268,7 @@ comp_vect0 dfs (VectPack {..}) (Call f es) = do
 
   -- NB: It's not very efficient to create a zillion typed names.
   -- Hence we create one and set its type each time.
-  vf <- newVectGName (name f ++ "_vect") 
+  vf <- newVectGName (name f ++ "_vect")
                      (error "comp_vect0: unset type!") vp_loc Imm
 
   let mk_vect_call vbd
@@ -282,7 +282,7 @@ comp_vect0 dfs (VectPack {..}) (Call f es) = do
 
 {------------------------------------------------------------------------------}
 
-comp_vect0 dfs (VectPack {..}) (Interleave {}) = 
+comp_vect0 dfs (VectPack {..}) (Interleave {}) =
   return (singleDVRCands vp_self_dvr)
 
 comp_vect0 dfs (VectPack {..}) (Filter {}) =
@@ -305,7 +305,7 @@ comp_vect0 dfs (VectPack {..}) (Return {}) =
 
 {-------------------------------------------------------------------------------}
 
-comp_vect0 dfs (VectPack {..}) w@(Branch e c1 c2) = do 
+comp_vect0 dfs (VectPack {..}) w@(Branch e c1 c2) = do
   let sfs = compSFDD vp_card vp_tyin vp_tyout
       is_computer = isComputer vp_cty
 
@@ -319,7 +319,7 @@ comp_vect0 dfs (VectPack {..}) w@(Branch e c1 c2) = do
   warnIfEmpty dfs vp_comp recursive_vss "Branch"
 
 
-  let dbg_doc = vcat $ 
+  let dbg_doc = vcat $
           [ text "Branch computation, context:" <+> text (show vp_vctx)
           , text "Left branch candidates: " <+> ppr (compLoc c1)
           , nest 2 $ pprDVRess vcs1
@@ -340,7 +340,7 @@ comp_vect0 dfs (VectPack {..}) w@(Branch e c1 c2) = do
 
 {------------------------------------------------------------------------------}
 
-comp_vect0 dfs (VectPack {..}) (Standalone c) = 
+comp_vect0 dfs (VectPack {..}) (Standalone c) =
   mapDVRCands (updDVRComp $ cStandalone vp_loc) <$> comp_vect dfs vp_vctx c
 
 comp_vect0 dfs (VectPack {..}) (Mitigate {}) =
@@ -383,7 +383,7 @@ comp_vect0 dfs (VectPack {..}) (VectComp (fin,fout) c) = do
 
 {------------------------------------------------------------------------------}
 
-comp_vect0 dfs (VectPack {..}) _other = do 
+comp_vect0 dfs (VectPack {..}) _other = do
   verbose dfs $ text "comp_vect0 _other, location = " <+> ppr vp_loc
   addDVR vp_self_dvr <$>
     vect_comp_dd dfs vp_comp (compSFDD vp_card vp_tyin vp_tyout)
@@ -409,12 +409,12 @@ prependReadSrc :: SrcLoc -> ParInfo
                -> Ty -> DelayedVectRes -> DelayedVectRes
 prependReadSrc loc p orig_ty (DVR { dvr_comp = iocomp, dvr_vres = vres })
   = DVR { dvr_comp = iocomp', dvr_vres = vres', dvr_srcloc = loc }
-  where 
+  where
     iocomp'   = cPar loc p (cReadSrc loc new_rd_ty) <$> iocomp
     new_rd_ty = if dvr_in_ty == TVoid then orig_ty else dvr_in_ty
     dvr_in_ty = vect_in_ty vres
     new_in_ty = TBuff (ExtBuf new_rd_ty)
-    vres' = case vres of 
+    vres' = case vres of
      NotVect tin tout -> NotVect new_in_ty tout
      DidVect _ tout u -> DidVect new_in_ty tout (parUtility minUtil u dvr_in_ty)
 
@@ -424,25 +424,25 @@ appendWriteSnk :: SrcLoc -> ParInfo
                -> Ty -> DelayedVectRes -> DelayedVectRes
 appendWriteSnk loc p orig_ty (DVR { dvr_comp = iocomp, dvr_vres = vres })
   = DVR { dvr_comp = iocomp', dvr_vres = vres', dvr_srcloc = loc }
-  where 
+  where
     iocomp' = do
       c <- iocomp
       return (cPar loc p c (cWriteSnk loc new_wr_ty))
     new_wr_ty = if dvr_out_ty == TVoid then orig_ty else dvr_out_ty
-    dvr_out_ty = vect_out_ty vres        
+    dvr_out_ty = vect_out_ty vres
     new_out_ty = TBuff (ExtBuf new_wr_ty)
-    vres' = case vres of 
+    vres' = case vres of
      NotVect tin _ -> NotVect tin new_out_ty
      DidVect tin _ u -> DidVect tin new_out_ty (parUtility minUtil u dvr_out_ty)
 
 {-------------------------------------------------------------------------------
-  Vectorizing Map 
+  Vectorizing Map
 -------------------------------------------------------------------------------}
 
 -- | To avoid duplication we vectorize Map exactly as we do for
 -- repeat. Hence, below we create a node: seq { x <- take; emit f(x) }
 -- and call the vectorizer for Repeat.
-vectMap :: DynFlags 
+vectMap :: DynFlags
         -> VectPack
         -> EId
         -> Maybe VectAnn
@@ -450,9 +450,9 @@ vectMap :: DynFlags
 vectMap dfs vp@(VectPack {..}) f vann = do
   MkComp (Repeat _ c0) _ _ <- expandMapToTakeEmit vp_loc vann vp_tyin f
   vectRepeat dfs vp c0 vann
-  
+
 {-------------------------------------------------------------------------------
-  Vectorizing Repeat 
+  Vectorizing Repeat
 -------------------------------------------------------------------------------}
 
 type ScaleFactors = ([SFUD], [SFDU], [SFDD])
@@ -468,7 +468,7 @@ repeat_scalefactors vctx card tyin tyout
 
 select_scalefactors :: CtxForVect -> ScaleFactors -> ScaleFactors
 select_scalefactors vctx (sfuds,sfdus,sfdds)
-  = case vctx of 
+  = case vctx of
 
 {- Treat CtxUnrestricted a bit more ... restricted. In principle we
    should not have to do this if we were to use a better utility
@@ -478,11 +478,11 @@ select_scalefactors vctx (sfuds,sfdus,sfdds)
 
 -}
       CtxUnrestricted       -> (sfuds, [], sfdds)
- 
-      CtxExCompLeft         -> (sfuds, []   , sfdds) 
+
+      CtxExCompLeft         -> (sfuds, []   , sfdds)
       CtxExCompRight        -> ([]   , sfdus, sfdds)
-      CtxExCompLeftAndRight 
-       -> (filter isSteady_sfud sfuds, 
+      CtxExCompLeftAndRight
+       -> (filter isSteady_sfud sfuds,
               filter isSteady_sfdu sfdus, sfdds)
 
 
@@ -498,48 +498,48 @@ logCands dfs full_blown origin cands = do
 -- | NB: Not including 'self'
 vectRepeat :: DynFlags
            -> VectPack
-           -> LComp -- The iterated /computer/ 
+           -> LComp -- The iterated /computer/
            -> Maybe VectAnn
            -> VecM DVRCands
 vectRepeat dfs (VectPack { vp_vctx  = vctx
                          , vp_tyin  = tyin
                          , vp_tyout = tyout
-                         , vp_loc   = loc 
-                         , vp_comp  = orig_repeat_comp }) c vann 
+                         , vp_loc   = loc
+                         , vp_comp  = orig_repeat_comp }) c vann
   = do (_,cands) <- go vann c
        when (Map.null cands) $
          vecMFail loc $
            vcat [ text "Empty vectorization, check vectorization annotations."
-                , text "Computation:" 
+                , text "Computation:"
                 , nest 2 (ppr orig_repeat_comp)
                 ]
        return cands
- 
+
   where
    wrap_repeat c = cRepeat (compLoc c) Nothing c
 
    -- | Vectorize without restrictions and up/dn mitigate
-   go Nothing c0 = do 
+   go Nothing c0 = do
      let sfss@(sfuds,sfdus,sfdds)
             = repeat_scalefactors vctx (compInfo c0) tyin tyout
      vecuds <- vect_comp_ud dfs c0 sfuds >>= logCands dfs False "vect_comp_ud"
      vecdus <- vect_comp_du dfs c0 sfdus >>= logCands dfs False "vect_comp_du"
      vecdds <- vect_comp_dd dfs c0 sfdds >>= logCands dfs False "vect_comp_dd"
- 
+
      vec_recursives <- comp_vect dfs vctx c0
 
-     let cands = vecuds `unionDVRCands` 
-                 vecdus `unionDVRCands` 
+     let cands = vecuds `unionDVRCands`
+                 vecdus `unionDVRCands`
                  vecdds `unionDVRCands` vec_recursives
 
      -- Add self too here:
      let self = mkSelf orig_repeat_comp tyin tyout
-     let res = self `addDVR` 
+     let res = self `addDVR`
                  mapDVRCands (updDVRComp wrap_repeat) cands
 
      _ <- logCands dfs True "VectRepeat" res
      return (sfss,res)
-  
+
    -- | Vectorize internally to /exactly/ (fin,fout) and externally up
    -- or down depending on the flag f
    go (Just ann@(Rigid f (fin,fout))) c0 = do
@@ -547,16 +547,16 @@ vectRepeat dfs (VectPack { vp_vctx  = vctx
       let pred (ty1,ty2) _ = ty_match ty1 fin && ty_match ty2 fout
           vcs_matching     = Map.filterWithKey pred vcs
 
-      -- vcs_rest         = Map.filterWithKey (not . pred) vcs 
+      -- vcs_rest         = Map.filterWithKey (not . pred) vcs
 
       verbose dfs $ text ("Rigid (fin,fout) = " ++ show (fin,fout))
       verbose dfs $ text ("Context is: " ++ show vctx)
       verbose dfs $ nest 2 $ vcat (map (text . show) (dvResDVRCands vcs))
 
-      res <- logCands dfs False "VectRepeat" $ 
+      res <- logCands dfs False "VectRepeat" $
                mitigateFlexi ann vctx sfss vcs_matching
       -- Force mitigation result
-      res `seq` do 
+      res `seq` do
          verbose dfs $ text "After mitigateFlexi (Rigid):"
          verbose dfs $ nest 2 $ vcat (map (text . show) (dvResDVRCands res))
          return (sfss,res)
@@ -575,15 +575,15 @@ vectRepeat dfs (VectPack { vp_vctx  = vctx
 
       _ <- logCands dfs True "Matching (UpTo) are:" $ vcs_matching
 
-      res <- logCands dfs False "VectRepeat" $ 
+      res <- logCands dfs False "VectRepeat" $
                 mitigateFlexi ann vctx sfss vcs_matching
 
-      res `seq` do 
+      res `seq` do
 
         verbose dfs $ text "After mitigateFlexi (UpTo):"
         verbose dfs $ nest 2 $ vcat (map (text . show) (dvResDVRCands res))
         return (sfss,res)
- 
+
 
 -- | Somewhat delicate arity equality and up-to comparisons
 ty_match :: Ty -> Int -> Bool
@@ -604,26 +604,26 @@ ty_upto _t j                      = j > 0
 mitigateFlexi :: VectAnn -> CtxForVect -> ScaleFactors -> DVRCands -> DVRCands
 mitigateFlexi (Rigid False _) vctx _sfss cands = cands
 mitigateFlexi (UpTo False _)  vctx _sfss cands = cands
-mitigateFlexi vann vctx sfss cands 
+mitigateFlexi vann vctx sfss cands
   = let is_rigid = case vann of { Rigid {} -> True; _ -> False }
-        mitigated r = 
+        mitigated r =
          let ain  = tyArity (vect_in_ty  $ dvr_vres r)
              aout = tyArity (vect_out_ty $ dvr_vres r)
              dummy_card = (CAStatic ain, CAStatic aout)
-{-   
+{-
              sfuds0 = compSFUD_aux dummy_card
              sfdus0 = compSFDU_aux dummy_card
              -- If Rigid, the programmer explicitly asked for this
              -- internal vectorization, so it's ok to arbitrarily
              -- down-vectorize, if not then conservatively we do not
              -- down-vectorize.
-             sfdds0 = if is_rigid 
+             sfdds0 = if is_rigid
                       then compSFDD_aux dummy_card
                       else []
              (sfuds,sfdus,sfdds) = select_scalefactors vctx (sfuds0,sfdus0,sfdds0)
 -}
-{-   Alternatively, it's entirely valid to do the following, 
-     but I am keeping the arguably less efficient current 
+{-   Alternatively, it's entirely valid to do the following,
+     but I am keeping the arguably less efficient current
      version as the approximation we do with the dummy_card
      seems to give slightly less 'mitigated' final code.
 -}
@@ -633,7 +633,7 @@ mitigateFlexi vann vctx sfss cands
              arities2 = map sfdu_arity sfdus
              arities3 = map sfdd_arity sfdds
              arities  = filter (rate_preserving vctx ain aout) $
-                        arities1 ++ arities2 ++ arities3 
+                        arities1 ++ arities2 ++ arities3
 
          in catMaybes $ map (\ar -> mit_one_mb "MF" ar r) arities
 
@@ -645,13 +645,13 @@ mitigateFlexi vann vctx sfss cands
 --       not (ar_lt_in cin vin && ar_gt_out cout vout)
 
 -- case vctx of
---          CtxExCompLeft  -> ar_geq_in cin vin 
+--          CtxExCompLeft  -> ar_geq_in cin vin
 --                            -- && ar_geq_out vout cout
 --          CtxExCompRight -> -- ar_leq_in cin vin
 --                            ar_leq_out vout cout
 
---          CtxExCompLeftAndRight -> 
---               ar_geq_in cin vin && ar_geq_out vout cout && 
+--          CtxExCompLeftAndRight ->
+--               ar_geq_in cin vin && ar_geq_out vout cout &&
 --               ar_leq_in cin vin && ar_leq_out vout cout
 --          CtxUnrestricted -> True
 
@@ -660,7 +660,7 @@ mitigateFlexi vann vctx sfss cands
 
 
 
-{- The following /must not/ happen, but it used to happen due to a bug 
+{- The following /must not/ happen, but it used to happen due to a bug
    in flexible mitigation, particularly removeDC was becoming 64-64 but
    externally appeared as 8-8. As a result it really had to read chunks
    of 64 but the upstream guy sent only some multiple of 8 (I believe
@@ -668,7 +668,7 @@ mitigateFlexi vann vctx sfss cands
 
    1-{read[arr[8] complex16]}-8 >>>
     repeat seq { y{_r2223} <- 8-{___downSample_blk_vect_DD1_9635{_v9635} ()}-0
-               ; 0-{___downSample_blk_vect_DD2_9643{_v9643} ()}-4 } >>> 
+               ; 0-{___downSample_blk_vect_DD2_9643{_v9643} ()}-4 } >>>
     seq { det{_r2644} <- 4-mitigate(MAoMF)[complex16]-64 .>>>.
       repeat 64-{___removeDC_blk_vect_DU1_9888{_v9888} ()}-64 .>>>.
       64-mitigate(MF)[complex16]-4 >>>
@@ -682,22 +682,22 @@ mitigateFlexi vann vctx sfss cands
 -------------------------------------------------------------------------------}
 
 vect_comp_ud :: DynFlags -> LComp -> [SFUD] -> VecM DVRCands
-vect_comp_ud dfs lcomp sfs 
+vect_comp_ud dfs lcomp sfs
  = fromListDVRCands <$> mapM (VecScaleUp.doVectCompUD dfs cty lcomp) sfs
  where cty = ctComp lcomp
 
 vect_comp_du :: DynFlags -> LComp -> [SFDU] -> VecM DVRCands
-vect_comp_du dfs lcomp sfs 
+vect_comp_du dfs lcomp sfs
  = fromListDVRCands <$> mapM (VecScaleUp.doVectCompDU dfs cty lcomp) sfs
  where cty = ctComp lcomp
 
 vect_comp_dd :: DynFlags -> LComp -> [SFDD] -> VecM DVRCands
-vect_comp_dd dfs lcomp sfs 
+vect_comp_dd dfs lcomp sfs
  = do rres <- mapM (VecScaleDn.doVectCompDD dfs cty lcomp) sfs
-      
-      -- verbose dfs $ 
+
+      -- verbose dfs $
       --   vcat [ text "vect_comp_dd, result size = " <+> int (length rres)
-      --        , nest 2 $ vcat (map (text . show . dvr_vres) rres) 
+      --        , nest 2 $ vcat (map (text . show . dvr_vres) rres)
       --        ]
 
       return (fromListDVRCands rres)
@@ -714,9 +714,9 @@ initVectorizer :: IO ()
 initVectorizer = writeIORef VecSF.divsOfMemo (Map.empty)
 
 
--- | Entry point to vectorizer 
--- The first Comp that we return is the maximal candidate. In Debug mode we 
--- also can return all possible candidates in the second component of the 
+-- | Entry point to vectorizer
+-- The first Comp that we return is the maximal candidate. In Debug mode we
+-- also can return all possible candidates in the second component of the
 -- returned pair (including the maximal)
 runVectorizer :: DynFlags -> GS.Sym -> Comp -> IO (Comp,[Comp])
 runVectorizer dflags sym comp = do
@@ -727,26 +727,26 @@ runVectorizer dflags sym comp = do
 
   verbose dflags $ text "Vectorization starting."
   vss <- runVecM (VecEnv sym [] []) (computeVectTop dflags lcomp)
-  verbose dflags $ text "Vectorization finished." <+> 
+  verbose dflags $ text "Vectorization finished." <+>
                    parens (ppr (Map.size vss) <+> text "candidates")
 
-  when (Map.null vss) $ 
-    panic $ 
+  when (Map.null vss) $
+    panic $
     vcat [ text "Empty vectorization candidate set for computation:"
-         , ppr comp 
+         , ppr comp
          ]
-  
+
   let do_one (DVR { dvr_comp = io_comp, dvr_vres = vres }) = do
         vc_mit <- io_comp
         -- Optimize mitigators
         let vc_opt_mit = vc_mit
         -- Maybe here we want to do a very light elimination of mitigators
-        -- before a proper PassFold later on. Not clear. 
-        let vc = vc_opt_mit 
+        -- before a proper PassFold later on. Not clear.
+        let vc = vc_opt_mit
 
-        verbose dflags $ 
+        verbose dflags $
            vcat [ text "Type checking vectorization candidate."
-                  -- too verbose: , nest 2 $ ppr vc 
+                  -- too verbose: , nest 2 $ ppr vc
                 ]
 
         case ctComp vc of _ -> return vc
@@ -755,16 +755,16 @@ runVectorizer dflags sym comp = do
 
   -- in Debug mode optimize compile and type check all candidates
   let maxi = getMaximal vss
- 
-  maxi_comp <- dvr_comp maxi  
+
+  maxi_comp <- dvr_comp maxi
   verbose dflags $ vcat [ text "Selected candidate is: "
                         , nest 2 $ text $ show $ dvr_vres maxi
                         -- too verbose: , nest 2 $ ppr maxi_comp
-                        ] 
+                        ]
 
   final_maxi_comp <- do_one maxi
 
-  when (isDynFlagSet dflags Debug) $ 
+  when (isDynFlagSet dflags Debug) $
     T.mapM do_one vss >> return ()
 
   return (final_maxi_comp, []) -- Don't emit candidates, that's ok

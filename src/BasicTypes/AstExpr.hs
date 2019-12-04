@@ -26,7 +26,7 @@ module AstExpr (
   , module AstExpr 
   ) where
 
-import Prelude hiding (exp, mapM)
+import Prelude hiding (exp, mapM, (<>))
 import Control.DeepSeq (NFData(..))
 import Control.DeepSeq.Generics (genericRnf)
 import Data.Loc

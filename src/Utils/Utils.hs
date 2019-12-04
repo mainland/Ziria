@@ -33,7 +33,7 @@ panic err = unsafePerformIO $ do
   print $ text "Panic! The impossible happened!" $$ err
   exitFailure
 
-warn :: Doc -> a -> a 
+warn :: Doc -> a -> a
 warn msg a = unsafePerformIO $ do
   print $ text "Warning:" $$ msg
   return a
@@ -109,17 +109,17 @@ instance Functor ReadsM where
   fmap = liftM
 
 instance Applicative ReadsM where
-  pure  = return
-  (<*>) = ap
+  pure a = ReadsM $ \str -> [(a, str)]
+  (<*>)  = ap
 
 instance Alternative ReadsM where
   empty = mzero
   (<|>) = mplus
 
 instance Monad ReadsM where
-  return a = ReadsM $ \str -> [(a, str)]
-  x >>= f  = ReadsM $ \str -> concatMap (\(a, str') -> runReadsM (f a) str')
-                                        (runReadsM x str)
+  return  = pure
+  x >>= f = ReadsM $ \str -> concatMap (\(a, str') -> runReadsM (f a) str')
+                                       (runReadsM x str)
 
 instance MonadPlus ReadsM where
   mzero     = ReadsM $ \_   -> []

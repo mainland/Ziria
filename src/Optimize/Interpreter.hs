@@ -90,6 +90,7 @@
 -- this old value.  We could solve this by using something like SSA form, but
 -- for now we just don't do symbolic evaluation at all.
 {-# OPTIONS_GHC -Wall -Wwarn -funbox-strict-fields #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -130,6 +131,7 @@ module Interpreter (
 import Control.Applicative
 import Control.Arrow (second)
 import Control.Monad.Error
+import Control.Monad.Fail
 import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Data.Bits hiding (bit)
@@ -140,7 +142,7 @@ import Data.Loc
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe
-import Data.Monoid
+import Data.Semigroup
 import qualified Data.Set        as Set
 import Data.Set (Set)
 import Data.Word
@@ -696,6 +698,9 @@ newtype Eval m a = Eval {
            , Monad
            , MonadError String
            )
+
+instance Monad m => MonadFail (Eval m) where
+  fail msg = throwError msg
 
 -- We derive MonadState manually so that we can make sure state is always
 -- updated strictly.
@@ -1552,9 +1557,14 @@ assign = \lhs rhs -> deref lhs (\_ -> return rhs)
 
 newtype BinaryOp = BinaryOp { applyBinaryOp :: Value -> Value -> Maybe Value }
 
+instance Semigroup BinaryOp where
+  f <> g = BinaryOp $ \a b -> applyBinaryOp f a b <|> applyBinaryOp g a b
+
 instance Monoid BinaryOp where
   mempty        = BinaryOp $ \_ _ -> Nothing
-  f `mappend` g = BinaryOp $ \a b -> applyBinaryOp f a b <|> applyBinaryOp g a b
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = Semigroup.(<>)
+#endif
 
 mkBinaryOp :: (Value0 -> Value0 -> Maybe Value0) -> BinaryOp
 mkBinaryOp f = BinaryOp $ \(MkValue va p) (MkValue vb _) ->
@@ -1747,9 +1757,14 @@ zBinOp Or    = zBool2 (||)
 
 newtype UnaryOp = UnaryOp { applyUnaryOp :: Value -> Maybe Value }
 
+instance Semigroup UnaryOp where
+  f <> g = UnaryOp $ \a -> applyUnaryOp f a <|> applyUnaryOp g a
+
 instance Monoid UnaryOp where
   mempty        = UnaryOp $ \_ -> Nothing
-  f `mappend` g = UnaryOp $ \a -> applyUnaryOp f a <|> applyUnaryOp g a
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = Semigroup.(<>)
+#endif
 
 mkUnaryOp :: (Value0 -> Maybe Value0) -> UnaryOp
 mkUnaryOp f = UnaryOp $ \(MkValue va p) -> (\v0 -> MkValue v0 p) <$> f va

@@ -19,6 +19,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Outputable where
 
+import Prelude hiding ((<>))
 import Text.PrettyPrint.HughesPJ
 import Data.Loc
 import qualified Data.Map as M

@@ -20,7 +20,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module AstName where
 
-import Prelude hiding (exp, mapM)
+import Prelude hiding (exp, mapM, (<>))
 import Data.Loc
 import Data.Data (Data)
 import Data.Typeable (Typeable)

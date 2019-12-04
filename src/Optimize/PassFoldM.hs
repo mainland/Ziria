@@ -22,7 +22,6 @@
 module PassFoldM where
 
 import Prelude hiding (exp)
-import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Loc

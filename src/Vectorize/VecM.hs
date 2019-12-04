@@ -24,6 +24,7 @@ module VecM where
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
 #endif /* !MIN_VERSION_base(4,8,0) */
+import Control.Monad.Fail
 import Control.Monad.Reader
 import Data.Loc
 
@@ -35,7 +36,7 @@ import qualified AstLabelled as AstL
 
 import CardAnalysis
 import CtComp
-import Utils 
+import Utils
 
 import Outputable
 import Text.PrettyPrint.HughesPJ
@@ -63,8 +64,8 @@ data CFunBind = CFunBind {
   , cfun_body   :: LComp }
 
 data VecEnv = VecEnv {
-    venv_sym        :: GS.Sym 
-  , venv_cvar_binds :: [(CId, LComp)] 
+    venv_sym        :: GS.Sym
+  , venv_cvar_binds :: [(CId, LComp)]
   , venv_cfun_binds :: [(CId, CFunBind)] }
 
 
@@ -72,6 +73,7 @@ newtype VecM a = VecM (ReaderT VecEnv IO a)
   deriving ( Functor
            , Applicative
            , Monad
+           , MonadFail
            , MonadIO
            , MonadReader VecEnv
            )
@@ -81,11 +83,11 @@ runVecM venv (VecM act) = runReaderT act venv
 
 vecMFail :: SrcLoc -> Doc -> VecM a
 vecMFail loc msg
-  = liftIO $ 
-    do print $ vcat [ 
+  = liftIO $
+    do print $ vcat [
            text "Vectorization failure!"
-         , text "Reason:" 
-         , msg 
+         , text "Reason:"
+         , msg
          , text "Location:" <+> ppr loc ]
        exitFailure
 
@@ -95,7 +97,7 @@ vecMFail loc msg
 -------------------------------------------------------------------------}
 
 newVectUniq :: VecM String
-newVectUniq = liftIO . GS.genSymStr =<< asks venv_sym 
+newVectUniq = liftIO . GS.genSymStr =<< asks venv_sym
 
 newVectGName :: String -> ty -> SrcLoc -> MutKind -> VecM (GName ty)
 newVectGName nm ty loc mk = do
@@ -109,19 +111,19 @@ newVectGName nm ty loc mk = do
 getVecEnv :: VecM VecEnv
 getVecEnv = ask
 
-extendCVarBind :: CId 
+extendCVarBind :: CId
                -> LComp -> VecM a -> VecM a
 extendCVarBind nm comp = local add_bind
-  where 
+  where
     new_bnd = (nm,comp)
     add_bind env = env { venv_cvar_binds = new_bnd : venv_cvar_binds env }
-                  
+
 extendCFunBind :: CId
                -> [GName (CallArg Ty CTy)]
                -> LComp
                -> VecM a -> VecM a
 extendCFunBind nm params cbody = local add_bind
-  where 
+  where
     new_bnd = (nm, CFunBind params cbody)
     add_bind env = env { venv_cfun_binds = new_bnd : venv_cfun_binds env }
 
@@ -155,19 +157,19 @@ lookupCFunBind nm = do
    ~~~~~~~~~~~~~~~~~~~~~~~~~~
    A Vectorization Result (VectRes) records whether vectorization
    happened and what are the final input and output types of the
-   vectorization result (vect_in_ty and vect_out_ty respectively). 
-   It also records the utility of this particular vectorization. 
+   vectorization result (vect_in_ty and vect_out_ty respectively).
+   It also records the utility of this particular vectorization.
 -}
 
 -- | Vectorization result
 data VectRes =
      -- No vectorization
-     NotVect { 
+     NotVect {
         vect_in_ty  :: !Ty   -- same asoriginal in_ty
-      , vect_out_ty :: !Ty } -- same as original out_ty 
+      , vect_out_ty :: !Ty } -- same as original out_ty
 
      -- Vectorization did happen
-   | DidVect { 
+   | DidVect {
         vect_in_ty  :: !Ty       -- final input type
       , vect_out_ty :: !Ty       -- final output type
       , vect_util   :: !Double } -- utility, see Note [Utility]
@@ -175,7 +177,7 @@ data VectRes =
  deriving Show
 
 mkNotVect :: Ty -> Ty -> VectRes
-mkNotVect in_ty yld_ty = NotVect in_ty yld_ty 
+mkNotVect in_ty yld_ty = NotVect in_ty yld_ty
 
 mkDidVect :: Ty -> Ty -> Double -> VectRes
 mkDidVect in_ty yld_ty u = DidVect in_ty yld_ty u
@@ -187,7 +189,7 @@ vResUtil (NotVect {})    = minUtil
 
 didVect :: VectRes -> Bool
 didVect (DidVect {}) = True
-didVect _            = False 
+didVect _            = False
 
 -- | Are these results (about the same term) the same (modulo utility)?
 vResEqQ :: VectRes -> VectRes -> Bool
@@ -203,7 +205,7 @@ vResEqQ _ _ = False
 -- actually having done the rewriting.
 data DelayedVectRes
    = DVR { dvr_comp   :: !(IO Comp)  -- Delayed result
-         , dvr_srcloc :: !SrcLoc    -- Location 
+         , dvr_srcloc :: !SrcLoc    -- Location
          , dvr_vres   :: !VectRes }  -- Information about the result
 
 -- | Lift an operation on VectRes to be on a DelayedVectRes
@@ -232,7 +234,7 @@ forceDVR dvr = liftIO $ dvr_comp dvr
 -}
 
 -- | Input and output type of vectorization result
-type DVRQueues = (Ty,Ty) 
+type DVRQueues = (Ty,Ty)
 
 dvrQueueDVR :: DelayedVectRes -> (Ty,Ty)
 dvrQueueDVR dvr = (inty,yldty)
@@ -249,12 +251,12 @@ addDVR :: DelayedVectRes -> DVRCands -> DVRCands
 addDVR dvr = dvr `seq` Map.insertWith max_dvr (dvrQueueDVR dvr) dvr
 
 fromListDVRCands :: [DelayedVectRes] -> DVRCands
-fromListDVRCands rs = 
+fromListDVRCands rs =
   Map.fromListWith max_dvr (map (\r -> (dvrQueueDVR r, r)) rs)
 
 
 unionDVRCands :: DVRCands -> DVRCands -> DVRCands
-unionDVRCands d1 d2 
+unionDVRCands d1 d2
   = d1 `seq` d2 `seq` (Map.unionWith max_dvr d1 d2)
 
 
@@ -274,16 +276,16 @@ singleDVRCands dvr = dvr `addDVR` emptyDVRCands
 
 -- | Get the maximal candidate
 getMaximal :: DVRCands -> DelayedVectRes
-getMaximal = fromJust . Map.foldr aux Nothing 
+getMaximal = fromJust . Map.foldr aux Nothing
   where aux hp Nothing = return hp
-        aux hp (Just dvr) 
+        aux hp (Just dvr)
           | let dvr' = hp
           = return $ max_dvr dvr dvr'
 
 
 -- | The very same component, non-vectorized
 mkSelf :: LComp -> Ty -> Ty -> DelayedVectRes
-mkSelf lcomp tin tout 
+mkSelf lcomp tin tout
   = DVR { dvr_comp = return (eraseComp lcomp)
         , dvr_vres = NotVect tin tout
         , dvr_srcloc = compLoc lcomp
@@ -296,16 +298,16 @@ warnIfEmpty _dfs lc cands msg = warnIfEmptyDoc _dfs lc cands msg (text "")
 warnIfEmptyDoc :: DynFlags -> LComp -> DVRCands -> String -> Doc -> VecM ()
 warnIfEmptyDoc _dfs lc cands msg extra_info
   = when (Map.null cands) $ do
-       vecMFail (compLoc lc) $ 
+       vecMFail (compLoc lc) $
           vcat [ text "ERROR: empty vectorization" <+> braces (text msg)
-               , text "For computation:" 
+               , text "For computation:"
                , nest 2 $ ppr lc
-               , text "Extra info:" 
-               , nest 2 extra_info 
+               , text "Extra info:"
+               , nest 2 extra_info
                ]
-       
+
 pprDVRess :: DVRCands -> Doc
-pprDVRess cands = 
+pprDVRess cands =
   let xs = Map.elems cands
   in vcat $ map (text . show . dvr_vres) xs
 
@@ -314,24 +316,24 @@ pprDVRess cands =
   Vectorization utility calculations
 -------------------------------------------------------------------------}
 
-{- Note [Utility] 
+{- Note [Utility]
    ~~~~~~~~~~~~~~
    We associate with each vectorization an utility, represented as a
    Double. We provide below ways to calculate utilities through Bind and
    Par. It should be easy to modify these functions and experiment with
    different utilities.
--} 
+-}
 
 -- | Utility computation of a Bind/Seq or a Branch.
---   Preconditions: 
---     a) all input types are joinable 
+--   Preconditions:
+--     a) all input types are joinable
 --     b) all output types are joinable
 chooseBindUtility :: [VectRes] -> Double
 chooseBindUtility [] = panicStr "chooseBindUtility: empty list"
 chooseBindUtility ds = us / len
-  where us :: Double 
+  where us :: Double
         us = sum $ map vResUtil ds
-        len :: Double 
+        len :: Double
         len = fromIntegral $ length ds
 
 -- | Utility computation of a Par
@@ -339,12 +341,12 @@ chooseBindUtility ds = us / len
 -- intermediate types are joinable (with ctJoin)
 chooseParUtility :: VectRes -> VectRes -> Double
 chooseParUtility vr1 vr2 = parUtility u1 u2 tmid
-  where 
-    u1   = vResUtil vr1 
-    u2   = vResUtil vr2 
+  where
+    u1   = vResUtil vr1
+    u2   = vResUtil vr2
     tmid = ctJoin (vect_out_ty vr1) (vect_in_ty vr2)
 
-util :: Ty -> Double 
+util :: Ty -> Double
 util (TArray (Literal n) _) = log $ (10.0 * fromIntegral n)
 util _ = minUtil
 
@@ -356,13 +358,13 @@ minUtil = 0.1 -- log 0.1
 
 -- | Choose a VectRes in case all types are joinable (precondition)
 vResMatch :: [VectRes] -> Maybe VectRes
-vResMatch vs = do 
+vResMatch vs = do
   inty  <- ctJoinMany_mb $ map vect_in_ty vs
   yldty <- ctJoinMany_mb $ map vect_out_ty vs
   -- We have ensured precondition of chooseBindUtility
-  let u = chooseBindUtility vs 
+  let u = chooseBindUtility vs
       any_vect = any didVect vs
-  if any_vect 
+  if any_vect
    then return $ DidVect inty yldty u
    else return $ NotVect inty yldty
 
@@ -372,7 +374,7 @@ vResMatch vs = do
 -------------------------------------------------------------------------}
 
 -- | Give back a vectorized version of a type
--- Some notes: 
+-- Some notes:
 --   * If wdth == 1 we return exactly the same type ty, not a 1-element array.
 --   * If ty = TVoid we do not return an array, just TVoid.
 -- Precondition: it must be (isVectorizable ty). TVoid isVectorizable.
@@ -380,7 +382,7 @@ mkVectTy :: Ty -> Int -> Ty
 mkVectTy ty wdth
   | not (isVectorizable ty)
   = panicStr $ "VecM: non-vectorizable type " ++ show ty
-  | wdth == 1 
+  | wdth == 1
   = ty
   | TVoid <- ty
   = TVoid
@@ -400,33 +402,33 @@ mkVectTy ty wdth
 isVectorizable :: Ty -> Bool
 isVectorizable ty
   | TArray {} <- ty
-  = False 
+  = False
   | otherwise = True
 
 
--- | Computes least array or primitive type from the two, used to 
--- determine if we could insert mitigator. NB: We don't generate 
+-- | Computes least array or primitive type from the two, used to
+-- determine if we could insert mitigator. NB: We don't generate
 -- arrays of length 1
-gcd_ty :: Ty -> Ty -> Ty 
-gcd_ty TVoid t = t 
+gcd_ty :: Ty -> Ty -> Ty
+gcd_ty TVoid t = t
 gcd_ty t TVoid = t
-gcd_ty (TArray (Literal l1) t1) 
+gcd_ty (TArray (Literal l1) t1)
        (TArray (Literal l2) t2)
   = assert "gcd_ty" (t1 == t2) $
-    let n = gcd l1 l2 
+    let n = gcd l1 l2
     in if n > 1 then TArray (Literal n) t1 else t1
 gcd_ty t (TArray _ t') = assert "gcd_ty" (t == t') t
 gcd_ty (TArray _ t') t = assert "gcd_ty" (t == t') t
-gcd_ty t t' 
+gcd_ty t t'
   | t == t' = t
   | otherwise
-  = panic $ text "gcd_ty: types are non-joinable!" <+> 
+  = panic $ text "gcd_ty: types are non-joinable!" <+>
             ppr t <+> text "and" <+> ppr t'
 
 -- | Precondition: non-empty list
 gcdTys :: [Ty] -> Ty
 gcdTys xs = go (head xs) (tail xs)
-  where go t []       = t 
+  where go t []       = t
         go t (t1:t1s) = go (gcd_ty t t1) t1s
 
 
@@ -437,10 +439,10 @@ gcdTys xs = go (head xs) (tail xs)
 -- | Match vectorization candidates composed on the data path
 combineData :: ParInfo  -> SrcLoc
             -> DVRCands -> DVRCands -> DVRCands
-combineData p loc xs ys 
+combineData p loc xs ys
  = let xs_list = Map.elems xs
        ys_list = Map.elems ys
-   in fromListDVRCands $ 
+   in fromListDVRCands $
           [ r | x <- xs_list, y <- ys_list
               , r <- from_mb $ combine_par p loc x y
           ]
@@ -454,20 +456,20 @@ combine_par pnfo loc dp1 dp2 = do
   return $ DVR { dvr_comp = iopar, dvr_vres = vres, dvr_srcloc = loc }
   where
     ioc1  = dvr_comp dp1
-    ioc2  = dvr_comp dp2 
-    iopar = do c1 <- ioc1 
-               c2 <- ioc2 
+    ioc2  = dvr_comp dp2
+    iopar = do c1 <- ioc1
+               c2 <- ioc2
                return $ cPar loc pnfo c1 c2
     -- Non-joinable => just fail
     mk_vres r1 r2
       | Nothing <- ctJoin_mb (vect_out_ty r1) (vect_in_ty r2)
-      = Nothing  
+      = Nothing
     -- Joinable and both NotVect => NotVect
     mk_vres (NotVect t1 _t2) (NotVect _s1 s2) = return $ NotVect t1 s2
-    -- Joinable and one DidVect => Didvect 
-    mk_vres r1 r2 
-      = let u = chooseParUtility r1 r2 
-        in return $ DidVect (vect_in_ty r1) (vect_out_ty r2) u 
+    -- Joinable and one DidVect => Didvect
+    mk_vres r1 r2
+      = let u = chooseParUtility r1 r2
+        in return $ DidVect (vect_in_ty r1) (vect_out_ty r2) u
 
 
 {-------------------------------------------------------------------------
@@ -480,7 +482,7 @@ combine_par pnfo loc dp1 dp2 = do
 -- NB: Never fails since originally the program used to work and we can
 -- always mitigate input and output.
 
-{- 
+{-
 combine_bind :: SrcLoc
              -> DelayedVectRes -> [EId] -> [DelayedVectRes] -> DelayedVectRes
 combine_bind loc pre_dvr1 xs pre_dvrs
@@ -494,20 +496,20 @@ combine_bind loc pre_dvr1 xs pre_dvrs
 
 
 combine_bind_mb :: SrcLoc
-                -> Bool 
-                -> DelayedVectRes -> [EId] -> [DelayedVectRes] 
+                -> Bool
+                -> DelayedVectRes -> [EId] -> [DelayedVectRes]
                 -> Maybe DelayedVectRes
 combine_bind_mb loc is_computer pre_dvr1 xs pre_dvrs = do
    res <- vResMatch $ map dvr_vres (dvr1:dvrs)
-   return $ 
+   return $
      DVR { dvr_comp = do
             c1 <- dvr_comp dvr1
             cs <- mapM dvr_comp dvrs
             return $ cBindMany loc c1 (zip xs cs)
-        , dvr_vres = res 
+        , dvr_vres = res
         , dvr_srcloc = loc }
-  where (dvr1:dvrs) = 
-           if is_computer then 
+  where (dvr1:dvrs) =
+           if is_computer then
              mitigate_all (pre_dvr1:pre_dvrs)
            else -- if he is a transformer then only the last guy
                 -- can be a transformer so mitigate everyone except him
@@ -517,31 +519,31 @@ combine_bind_mb loc is_computer pre_dvr1 xs pre_dvrs = do
 
 combine_branch_mb :: SrcLoc
                   -> Bool
-                  -> Exp -> DelayedVectRes -> DelayedVectRes 
+                  -> Exp -> DelayedVectRes -> DelayedVectRes
                   -> Maybe DelayedVectRes
-combine_branch_mb loc is_computer e pre_dvr1 pre_dvr2 = do 
+combine_branch_mb loc is_computer e pre_dvr1 pre_dvr2 = do
   res <- vResMatch $ map dvr_vres [dvr1,dvr2]
-  return $ 
+  return $
      DVR { dvr_comp = do
             c1 <- dvr_comp dvr1
-            c2 <- dvr_comp dvr2 
+            c2 <- dvr_comp dvr2
             return $ cBranch loc e c1 c2
-        , dvr_vres = res 
+        , dvr_vres = res
         , dvr_srcloc = loc }
   where
-     [dvr1,dvr2] = 
-       if is_computer 
+     [dvr1,dvr2] =
+       if is_computer
          then mitigate_all [pre_dvr1,pre_dvr2]
          else [pre_dvr1,pre_dvr2]
           -- mitigate_all [pre_dvr1,pre_dvr2]
 
-{- 
+{-
 combine_branch :: SrcLoc
                -> Exp -> DelayedVectRes -> DelayedVectRes -> DelayedVectRes
 combine_branch loc e pre_dvr1 pre_dvr2
   = DVR { dvr_comp = do
             c1 <- dvr_comp dvr1
-            c2 <- dvr_comp dvr2 
+            c2 <- dvr_comp dvr2
             return $ cBranch loc e c1 c2
         , dvr_vres = vResMatch $ map dvr_vres [dvr1,dvr2] }
   where
@@ -551,18 +553,18 @@ combine_branch loc e pre_dvr1 pre_dvr2
 
 mitigate_all :: [DelayedVectRes] -> [DelayedVectRes]
 mitigate_all vcs = map (mit_one "MA" (Just final_ty_in, Just final_ty_out)) vcs
- where 
+ where
    -- Compute "the" common input type and "the" common output type
    final_ty_in  = tyArity $ gcdTys $ map (vect_in_ty  . dvr_vres) vcs
    final_ty_out = tyArity $ gcdTys $ map (vect_out_ty . dvr_vres) vcs
 
 
 
-mit_one_mb :: String 
+mit_one_mb :: String
            -> (Maybe Int, Maybe Int) -> DelayedVectRes -> Maybe DelayedVectRes
-mit_one_mb _orig (Nothing, Nothing) dvr 
+mit_one_mb _orig (Nothing, Nothing) dvr
   = return $ fixup_util_out $ fixup_util_in dvr
-mit_one_mb orig (Just n,  Nothing) dvr  = fixup_util_out <$> mit_in orig n dvr 
+mit_one_mb orig (Just n,  Nothing) dvr  = fixup_util_out <$> mit_in orig n dvr
 mit_one_mb orig (Nothing, Just n)  dvr  = fixup_util_in  <$> mit_out orig dvr n
 mit_one_mb orig (Just n, Just m)   dvr  = mit_in orig n =<< mit_out orig dvr m
 
@@ -574,27 +576,27 @@ mit_in :: String -> Int -> DelayedVectRes -> Maybe DelayedVectRes
 mit_in orig n (DVR { dvr_comp = io_comp, dvr_vres = vres, dvr_srcloc = loc })
   = do (final_in_ty, cmit) <- mk_in_mitigator loc orig n vinty
        return $ DVR { dvr_comp   = cPar loc pnever cmit <$> io_comp
-                    , dvr_vres   = DidVect final_in_ty voutty u 
+                    , dvr_vres   = DidVect final_in_ty voutty u
                     , dvr_srcloc = loc }
   where vinty  = vect_in_ty vres  -- type in the middle!
         voutty = vect_out_ty vres
         u      = parUtility minUtil (vResUtil vres) vinty
 
 mit_out :: String -> DelayedVectRes -> Int -> Maybe DelayedVectRes
-mit_out orig (DVR { dvr_comp = io_comp, dvr_vres = vres, dvr_srcloc = loc }) m 
+mit_out orig (DVR { dvr_comp = io_comp, dvr_vres = vres, dvr_srcloc = loc }) m
   = do (final_out_ty, cmit) <- mk_out_mitigator loc orig voutty m
        return $ DVR { dvr_comp = (\c -> cPar loc pnever c cmit) <$> io_comp
-                    , dvr_vres = DidVect vinty final_out_ty u 
+                    , dvr_vres = DidVect vinty final_out_ty u
                     , dvr_srcloc = loc }
   where vinty  = vect_in_ty vres
         voutty = vect_out_ty vres -- type in the middle!
         u      = parUtility minUtil (vResUtil vres) voutty
 
 -- | Fixes-up utility /as if/ mitigation has happened
--- ^ This is to ensure all candidates are compared fairly, 
+-- ^ This is to ensure all candidates are compared fairly,
 -- ^ whether mitigation happened or not.
 fixup_util_in :: DelayedVectRes -> DelayedVectRes
-fixup_util_in dvr = dvr { dvr_vres = DidVect vinty voutty u } 
+fixup_util_in dvr = dvr { dvr_vres = DidVect vinty voutty u }
   where vres   = dvr_vres dvr
         vinty  = vect_in_ty vres
         voutty = vect_out_ty vres
@@ -602,7 +604,7 @@ fixup_util_in dvr = dvr { dvr_vres = DidVect vinty voutty u }
 
 
 fixup_util_out :: DelayedVectRes -> DelayedVectRes
-fixup_util_out dvr = dvr { dvr_vres = DidVect vinty voutty u } 
+fixup_util_out dvr = dvr { dvr_vres = DidVect vinty voutty u }
   where vres   = dvr_vres dvr
         vinty  = vect_in_ty vres
         voutty = vect_out_ty vres
@@ -635,21 +637,21 @@ mk_out_mitigator loc orig (TArray (Literal n) tbase) m
 mk_out_mitigator loc orig tother m
   = Just (mkVectTy tother m, cMitigate loc orig tother 1 m)
 
-        
+
 
 -- | Match vectorization candidates composed on the control path
-combineBind :: SrcLoc -> Bool -> 
-               DVRCands -> [EId] -> [DVRCands] -> DVRCands 
-combineBind loc is_comp = go 
-  where 
+combineBind :: SrcLoc -> Bool ->
+               DVRCands -> [EId] -> [DVRCands] -> DVRCands
+combineBind loc is_comp = go
+  where
     go c1cands [] [] = c1cands
     go c1cands (y:ys) (cs:css) =
        let cont_cands = go cs ys css
        in Map.foldr (foreach1 cont_cands) emptyDVRCands c1cands
-      where 
+      where
         foreach1 k heap res = Map.foldr foreach2 res k
-          where 
-            foreach2 heap' res' 
+          where
+            foreach2 heap' res'
               = maybe res' (`addDVR` res') $
                 combine_bind_mb loc is_comp heap [y] [heap']
 
@@ -657,49 +659,49 @@ combineBind loc is_comp = go
 
 
 -- | Match vectorization candidates to compose them in a branch
-combineBranch :: SrcLoc -> Bool 
+combineBranch :: SrcLoc -> Bool
               -> Exp -> DVRCands -> DVRCands -> DVRCands
-combineBranch loc is_comp e xs ys 
+combineBranch loc is_comp e xs ys
  = Map.foldr foreach_xs emptyDVRCands xs
  where
    foreach_xs heap res = Map.foldr foreach_ys res ys
-      where 
-        foreach_ys heap' res' 
+      where
+        foreach_ys heap' res'
           = maybe res' (`addDVR` res') $
                combine_branch_mb loc is_comp e heap heap'
 
 
 {-------------------------------------------------------------------------
-  Interpret Ziria computations and AST manipulation 
+  Interpret Ziria computations and AST manipulation
 -------------------------------------------------------------------------}
 
-mkDVRes :: Bindable v => (VecEnv -> Zr v) 
+mkDVRes :: Bindable v => (VecEnv -> Zr v)
         -> String
         -> SrcLoc -> Ty -> Ty -> VecM DelayedVectRes
-mkDVRes gen_zir kind loc vin_ty vout_ty = do 
+mkDVRes gen_zir kind loc vin_ty vout_ty = do
   venv <- getVecEnv
   zirc <- liftZr kind loc (gen_zir venv)
   let srcn = sourceName' loc
   zirc_wrapped <- wrapCFunCall (srcn ++ "_vect_" ++ kind) loc zirc
   return $ DVR { dvr_comp = return zirc_wrapped
-               , dvr_vres = DidVect vin_ty vout_ty minUtil 
-               , dvr_srcloc = loc 
+               , dvr_vres = DidVect vin_ty vout_ty minUtil
+               , dvr_srcloc = loc
                }
 
   where
-    sourceName' (SrcLoc (Loc p _)) 
+    sourceName' (SrcLoc (Loc p _))
        = map (\c -> if isAlphaNum c then c else '_') (posFile p)
     sourceName' (SrcLoc NoLoc) = ""
 
 
 liftZr :: Bindable v => String -> SrcLoc -> Zr v -> VecM Comp
-liftZr pref_dbg loc zr = do 
+liftZr pref_dbg loc zr = do
   sym  <- asks venv_sym
   liftIO $ interpC pref_dbg sym loc zr
 
 
 -- | Wrap the comp in a new function and call, for debugging purposes.
-wrapCFunCall :: String -> SrcLoc -> Comp -> VecM Comp 
+wrapCFunCall :: String -> SrcLoc -> Comp -> VecM Comp
 wrapCFunCall nm loc comp = do
   let carrty = CTArrow [] (ctComp comp)
   vname <- newVectGName nm carrty loc Imm
@@ -717,12 +719,12 @@ emit_card = SCard (CAStatic 0) (CAStatic 1)
 
 
 -- | Expand a Map node to a Repeat node
-expandMapToTakeEmit :: SrcLoc 
+expandMapToTakeEmit :: SrcLoc
                     -> Maybe VectAnn -> Ty -> EId -> VecM LComp
-expandMapToTakeEmit loc vann inty f = do 
+expandMapToTakeEmit loc vann inty f = do
   x <- newVectGName "_map_bnd" inty loc Imm
   return $
-    AstL.cRepeat loc OCard vann $ 
+    AstL.cRepeat loc OCard vann $
          AstL.cBindMany loc map_card tk [(x,em x)]
   where tk   = AstL.cTake1 loc take_card inty
         em x = AstL.cEmit loc emit_card (eCall loc f [eVar loc x])

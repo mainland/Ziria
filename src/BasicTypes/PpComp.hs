@@ -29,6 +29,8 @@ module PpComp (
   , isSimplComp
   ) where
 
+import Prelude hiding ((<>))
+
 import Text.PrettyPrint.HughesPJ
 
 import AstExpr

@@ -16,6 +16,7 @@
    See the Apache Version 2.0 License for specific language governing
    permissions and limitations under the License.
 -}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -136,16 +137,20 @@ module CgMonad
   , getGlobalParams
   ) where
 
+import Prelude hiding (fail)
 import Control.Applicative
-import Control.Monad.Error
-import Control.Monad.Reader
-import Control.Monad.State
-import Control.Monad.Writer
+import Control.Monad.Error (MonadError(..))
+import Control.Monad.Fail (MonadFail(..))
+import Control.Monad.Reader (MonadReader(..), asks)
+import Control.Monad.State (MonadState(..), gets, modify)
+import Control.Monad.Writer (MonadWriter(..), censor)
 import Data.Char (toUpper)
-import Data.Foldable (toList)    
-import Data.Monoid
+import Data.Foldable (toList)
+#if !(MIN_VERSION_base(4,9,0))
+import Data.Monoid (Monoid(..), (<>))
+#endif /* !(MIN_VERSION_base(4,9,0)) */
+import Data.Semigroup (Semigroup(..), (<>))
 import Data.Maybe (catMaybes)
-import Data.Monoid
 import Data.Loc (noLoc)
 import Data.Loc
 import Data.Sequence (Seq)
@@ -389,6 +394,11 @@ data Code = Code
 getCode :: Code -> ([C.Definition],[C.InitGroup],[C.Stm])
 getCode (Code df dc st) = (toList df, toList dc, toList st)
 
+instance Semigroup Code where
+  a <> b = Code { defs  = defs a <> defs b
+                , decls = decls a <> decls b
+                , stmts = stmts a <> stmts b
+                }
 
 instance Monoid Code where
     mempty = Code { defs     = mempty
@@ -396,10 +406,9 @@ instance Monoid Code where
                   , stmts    = mempty
                   }
 
-    a `mappend` b = Code { defs  = defs a <> defs b
-                         , decls = decls a <> decls b
-                         , stmts = stmts a <> stmts b
-                         }
+#if !(MIN_VERSION_base(4,11,0))
+    mappend = Semigroup.(<>)
+#endif
 
 data CgError = GenericError String
   deriving (Show)
@@ -416,8 +425,27 @@ evalCg sym stack_alloc_threshold m = do
       Left err -> return $ Left err
       Right (_, code, _) -> return $ Right $ toList (defs code)
 
+instance Functor Cg where
+    fmap f x = x >>= return . f
+
+instance Applicative Cg where
+    pure x = Cg $ \rho s -> return (Right (x, mempty, s))
+    (<*>)  = ap
+
+    (*>) m1  m2 =
+        Cg $ \rho s -> do res1 <- runCg m1 rho s
+                          case res1 of
+                            Left err -> return (Left err)
+                            Right (_, w1, s') -> do res2 <- runCg m2 rho s'
+                                                    case res2 of
+                                                      Left err -> return (Left err)
+                                                      Right (y, w2, s'') ->
+                                                          let w = w1 <> w2
+                                                          in
+                                                            w `seq` return (Right (y, w, s''))
+
 instance Monad Cg where
-    return x = Cg $ \rho s -> return (Right (x, mempty, s))
+    return  = pure
 
     (>>=) m f =
         Cg $ \rho s -> do res1 <- runCg m rho s
@@ -431,18 +459,13 @@ instance Monad Cg where
                                                           in
                                                             w `seq` return (Right (y, w, s''))
 
-    (>>) m1  m2 =
-        Cg $ \rho s -> do res1 <- runCg m1 rho s
-                          case res1 of
-                            Left err -> return (Left err)
-                            Right (_, w1, s') -> do res2 <- runCg m2 rho s'
-                                                    case res2 of
-                                                      Left err -> return (Left err)
-                                                      Right (y, w2, s'') ->
-                                                          let w = w1 <> w2
-                                                          in
-                                                            w `seq` return (Right (y, w, s''))
+    (>>) = (*>)
 
+#if !(MIN_VERSION_base(4,12,0))
+    fail = Control.Monad.Fail.fail
+#endif
+
+instance MonadFail Cg where
     fail msg = throwError $ GenericError msg
 
 instance MonadIO Cg where
@@ -450,13 +473,6 @@ instance MonadIO Cg where
 
 cgIO :: IO a -> Cg a
 cgIO = liftIO
-
-instance Functor Cg where
-    fmap f x = x >>= return . f
-
-instance Applicative Cg where
-    pure   = return
-    (<*>)  = ap
 
 instance MonadError CgError Cg where
     throwError e = Cg $ \_ _ -> return (Left e)

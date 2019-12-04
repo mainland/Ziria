@@ -763,10 +763,14 @@ data InlineData
                , inl_subst     :: [(GName Ty, Exp)]
                , inl_len_subst :: [(LenVar, NumExpr)] }
 
+instance Semigroup InlineData where
+ InlineData b1 s1 l1 <> InlineData b2 s2 l2 = InlineData (b1++b2) (s1++s2) (l1++l2)
+
 instance Monoid InlineData where
   mempty = InlineData [] [] []
-  mappend (InlineData b1 s1 l1) 
-          (InlineData b2 s2 l2) = InlineData (b1++b2) (s1++s2) (l1++l2)
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = Semigroup.(<>)
+#endif
 
 mappendM :: RwM InlineData -> RwM InlineData -> RwM InlineData
 mappendM m1 m2 = do

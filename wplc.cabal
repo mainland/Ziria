@@ -10,7 +10,7 @@ author:        Gordon Stewart <jsseven@cs.princeton.edu>
 stability:     alpha
 category:      Language
 synopsis:      Compiler for the WPL language.
-tested-with:   GHC==7.8.3, GHC==7.10.3, GHC==8.0.2
+tested-with:   GHC==7.8.4, GHC==7.10.3, GHC==8.0.2, GHC==8.2.2, GHC==8.4.4, GHC==8.6.5, GHC==8.8.1
 
 description:
   This package provides a compiler for the WPL language.
@@ -105,7 +105,7 @@ Executable wplc
     array                  >= 0.2   && < 0.6,
     base                   >= 4     && < 5,
     bytestring             >= 0.10  && < 0.11,
-    containers             >= 0.4   && < 0.6,
+    containers             >= 0.4   && < 0.7,
     deepseq                >= 1.3   && < 1.5,
     -- deepseq-generics is needed for deepseq < 1.4
     deepseq-generics       >= 0.1   && < 0.3,
@@ -114,27 +114,33 @@ Executable wplc
     ghc-prim               >= 0.3   && < 0.6,
     hashable               >= 1.2   && < 1.3,
     language-c-quote       >= 0.12  && < 0.13,
-    mainland-pretty        >= 0.6   && < 0.7,
+    mainland-pretty        >= 0.6   && < 0.8,
     mtl                    >= 2.0   && < 3,
     -- parsec 3.1.6 contains a bug (https://github.com/aslatter/parsec/issues/9)
     parsec                 >= 3.1.7 && < 3.2,
     pretty                 >= 1.1   && < 1.2,
-    pretty-show            >= 1.6.9 && < 1.7,
+    pretty-show            >= 1.6.9 && < 1.10,
     srcloc                 >= 0.5.0.2 && < 0.6,
     syb                    >= 0.4   && < 0.8,
     symbol                 >= 0.1   && < 0.3,
     text                   >= 1.1   && < 1.3,
-    time                   >= 1.4   && < 1.7,
-    template-haskell       >= 2.9   && < 2.12,
+    time                   >= 1.4   && < 1.9,
+    template-haskell       >= 2.9   && < 2.15,
     transformers           >= 0.3   && < 0.6
 
   -- Process 1.1 doesn't build with GHC 7.8
   if impl(ghc >= 7.8)
     build-depends:
-      process              >= 1.2 && < 1.5
+      process              >= 1.2 && < 1.7
   else
     build-depends:
       process              >= 1.1 && < 1.2
+
+  if impl(ghc >= 8.0)
+    ghc-options: -Wcompat -Wnoncanonical-monad-instances -Wnoncanonical-monadfail-instances
+  else
+    -- provide/emulate `Control.Monad.Fail` and `Data.Semigroups` API for pre-GHC8
+    build-depends: fail == 4.9.*, semigroups == 0.18.*
 
   ghc-options: -fwarn-incomplete-patterns -Werror 
                -- For profiling
@@ -154,7 +160,7 @@ Executable BlinkDiff
 
   build-depends:
     base                   >= 4     && < 5,
-    containers             >= 0.4   && < 0.6,
+    containers             >= 0.4   && < 0.7,
     parsec                 >= 3.1.7 && < 3.2
 
   ghc-options: -fwarn-incomplete-patterns -Werror

@@ -21,6 +21,7 @@
 -- | Pretty-printing type classes instances
 module PpExpr (nestingDepth, ppName, ppNameUniq, ppEs, ppBind) where
 
+import Prelude hiding ((<>))
 import Text.PrettyPrint.HughesPJ
 
 import AstExpr

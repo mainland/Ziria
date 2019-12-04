@@ -29,9 +29,9 @@ import Data.Data (Data)
 import Data.Either (partitionEithers)
 import Data.Functor.Identity ( Identity (..) )
 import Data.Loc
-#if !MIN_VERSION_base(4,8,0)
-import Data.Monoid
-#endif /* !MIN_VERSION_base(4,8,0) */
+#if !(MIN_VERSION_base(4,9,0))
+import Data.Monoid (Monoid(..), (<>))
+#endif /* !(MIN_VERSION_base(4,9,0)) */
 import Data.Set (Set)
 import Data.Maybe ( isJust )
 import Data.Traversable (mapM)
@@ -785,17 +785,22 @@ data TyVars = TyVars {
   , tyVarsBW  :: Set BWVar
   }
 
+instance Semigroup TyVars where
+  a <> b = TyVars { tyVarsTy  = tyVarsTy  a `S.union` tyVarsTy  b
+                  , tyVarsCTy = tyVarsCTy a `S.union` tyVarsCTy b
+                  , tyVarsLen = tyVarsLen a `S.union` tyVarsLen b
+                  , tyVarsBW  = tyVarsBW  a `S.union` tyVarsBW  b
+                  }
+  
 instance Monoid TyVars where
   mempty        = TyVars { tyVarsTy  = S.empty
                          , tyVarsCTy = S.empty
                          , tyVarsLen = S.empty
                          , tyVarsBW  = S.empty
                          }
-  a `mappend` b = TyVars { tyVarsTy  = tyVarsTy  a `S.union` tyVarsTy  b
-                         , tyVarsCTy = tyVarsCTy a `S.union` tyVarsCTy b
-                         , tyVarsLen = tyVarsLen a `S.union` tyVarsLen b
-                         , tyVarsBW  = tyVarsBW  a `S.union` tyVarsBW  b
-                         }
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = Sewmigroup.(<>)
+#endif                  
 
 -- | Are two sets of type variables entirely disjoint
 tyVarsDisjoint :: TyVars -> TyVars -> Bool

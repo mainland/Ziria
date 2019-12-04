@@ -109,11 +109,12 @@ module TcMonad (
   , liftIO
   ) where
 
-import Prelude hiding (exp)
+import Prelude hiding (exp, (<>))
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative hiding (empty)
 #endif /* !MIN_VERSION_base(4,8,0) */
 import Control.Arrow ((***))
+import Control.Monad.Fail (MonadFail(..))
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Error
@@ -169,6 +170,7 @@ newtype TcM a = TcM {
   deriving ( Functor
            , Applicative
            , Monad
+           , MonadFail
            , MonadIO
            , MonadError Doc
            , MonadState Unifier

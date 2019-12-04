@@ -187,11 +187,11 @@ instance Functor FStmt where
   fmap f x = x >>= return . f
 
 instance Applicative FStmt where
-  pure  = return
+  pure  = FEReturn
   (<*>) = ap
     
-instance Monad FStmt where 
-  return s = FEReturn s
+instance Monad FStmt where
+  return = pure
   (FEArrWrite fe1 fe2 li fe ss) >>= f = FEArrWrite fe1 fe2 li fe (ss >>= f)
   (FEAssign fe1 fe2 ss) >>= f         = FEAssign fe1 fe2 (ss >>= f)
   (FEReturn v) >>= f                  = f v
@@ -306,11 +306,11 @@ instance Functor Zr where
   fmap f x = x >>= return . f
 
 instance Applicative Zr where
-  pure  = return
+  pure  = FPure
   (<*>) = ap
 
 instance Monad Zr where
-  return e                      = FPure e 
+  return                        = pure
   (>>=) (FPure v) f             = f v
 
   (>>=) (FTakeOne t)  f         = FBind (FTakeOne t) f
