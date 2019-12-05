@@ -132,18 +132,19 @@ instance NFData Interval where
 data IVal v = IUnknown | IKnown v
   deriving (Generic, Typeable, Data, Eq, Show, Ord)
 
-instance Monad IVal where
-  return a = IKnown a
-  m >>= f  = case m of 
-    IUnknown -> IUnknown
-    IKnown x -> f x
-
--- Boilerplate
 instance Functor IVal where
     fmap f x = x >>= return . f
+
 instance Applicative IVal where
-    pure   = return
-    (<*>)  = ap
+    pure  = IKnown
+    (<*>) = ap
+
+instance Monad IVal where
+  return = pure
+
+  m >>= f = case m of
+    IUnknown -> IUnknown
+    IKnown x -> f x
 
 type RngMap = NameMap Ty Range
 

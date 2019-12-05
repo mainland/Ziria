@@ -14,8 +14,10 @@ module Language.Ziria.Parser.Exceptions (
 
 import Control.Monad.Exception
 import Data.Loc
+import Data.Monoid ((<>))
 import Data.Typeable (Typeable)
 import Text.PrettyPrint.Mainland
+import Text.PrettyPrint.Mainland.Class (Pretty(..))
 
 data LexerException = LexerException Pos Doc
   deriving (Typeable)

@@ -24,6 +24,7 @@ module VecM where
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
 #endif /* !MIN_VERSION_base(4,8,0) */
+import qualified Control.Monad.Fail as Fail
 import Control.Monad.Reader
 import Data.Loc
 
@@ -75,6 +76,9 @@ newtype VecM a = VecM (ReaderT VecEnv IO a)
            , MonadIO
            , MonadReader VecEnv
            )
+
+instance Fail.MonadFail VecM where
+    fail = VecM . lift . fail
 
 runVecM :: VecEnv -> VecM a -> IO a
 runVecM venv (VecM act) = runReaderT act venv

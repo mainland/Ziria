@@ -32,6 +32,7 @@ import Data.Loc
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid
 #endif /* !MIN_VERSION_base(4,8,0) */
+import qualified Data.Semigroup as Sem
 import Data.Set (Set)
 import Data.Maybe ( isJust )
 import Data.Traversable (mapM)
@@ -785,17 +786,21 @@ data TyVars = TyVars {
   , tyVarsBW  :: Set BWVar
   }
 
+instance Sem.Semigroup TyVars where
+  a <> b = TyVars { tyVarsTy  = tyVarsTy  a `S.union` tyVarsTy  b
+                  , tyVarsCTy = tyVarsCTy a `S.union` tyVarsCTy b
+                  , tyVarsLen = tyVarsLen a `S.union` tyVarsLen b
+                  , tyVarsBW  = tyVarsBW  a `S.union` tyVarsBW  b
+                  }
+  
 instance Monoid TyVars where
   mempty        = TyVars { tyVarsTy  = S.empty
                          , tyVarsCTy = S.empty
                          , tyVarsLen = S.empty
                          , tyVarsBW  = S.empty
                          }
-  a `mappend` b = TyVars { tyVarsTy  = tyVarsTy  a `S.union` tyVarsTy  b
-                         , tyVarsCTy = tyVarsCTy a `S.union` tyVarsCTy b
-                         , tyVarsLen = tyVarsLen a `S.union` tyVarsLen b
-                         , tyVarsBW  = tyVarsBW  a `S.union` tyVarsBW  b
-                         }
+
+  mappend = (Sem.<>)
 
 -- | Are two sets of type variables entirely disjoint
 tyVarsDisjoint :: TyVars -> TyVars -> Bool

@@ -29,6 +29,7 @@ import Data.Maybe (fromMaybe, catMaybes)
 import Data.Monoid
 import Data.Symbol
 import Text.PrettyPrint.Mainland
+import Text.PrettyPrint.Mainland.Class
 
 import Language.Ziria.Parser.Lexer
 import Language.Ziria.Parser.Monad

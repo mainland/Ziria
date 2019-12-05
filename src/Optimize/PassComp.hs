@@ -47,11 +47,11 @@ import qualified Data.Set as S
 -- import Outputable
 
 import Data.Loc
-#if !MIN_VERSION_base(4,8,0)
-import Data.Monoid
-#endif /* !MIN_VERSION_base(4,8,0) */
-
 import Data.Maybe ( fromJust )
+#if !MIN_VERSION_base(4,8,0)
+import Data.Monoid (Monoid(..))
+#endif /* !MIN_VERSION_base(4,8,0) */
+import Data.Semigroup (Semigroup(..))
 
 import AstComp
 import AstExpr
@@ -763,10 +763,12 @@ data InlineData
                , inl_subst     :: [(GName Ty, Exp)]
                , inl_len_subst :: [(LenVar, NumExpr)] }
 
+instance Semigroup InlineData where
+ InlineData b1 s1 l1 <> InlineData b2 s2 l2 = InlineData (b1++b2) (s1++s2) (l1++l2)
+
 instance Monoid InlineData where
   mempty = InlineData [] [] []
-  mappend (InlineData b1 s1 l1) 
-          (InlineData b2 s2 l2) = InlineData (b1++b2) (s1++s2) (l1++l2)
+  mappend = (<>)
 
 mappendM :: RwM InlineData -> RwM InlineData -> RwM InlineData
 mappendM m1 m2 = do

@@ -270,12 +270,12 @@ codeGenVal v =
       | i <= mAX_UINT32 && mIN_UINT32 <= i
       -> [cexp|$uint:i|]
       | otherwise -> [cexp|$ulint:i|]
-    VBit True   -> [cexp| 1                     |]
-    VBit False  -> [cexp| 0                     |]
-    VDouble d   -> [cexp| $double:(toRational d)|]
-    VBool True  -> [cexp| $uint:(1)             |]
-    VBool False -> [cexp| $uint:(0)             |]
-    VString str -> [cexp| $string:(str)         |]
+    VBit True   -> [cexp| 1             |]
+    VBit False  -> [cexp| 0             |]
+    VDouble d   -> [cexp| $double:(d)   |]
+    VBool True  -> [cexp| $uint:(1)     |]
+    VBool False -> [cexp| $uint:(0)     |]
+    VString str -> [cexp| $string:(str) |]
     VUnit       -> unitVal
 
 cgInitVal :: Ty -> C.Initializer

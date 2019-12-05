@@ -114,6 +114,7 @@ import Prelude hiding (exp)
 import Control.Applicative hiding (empty)
 #endif /* !MIN_VERSION_base(4,8,0) */
 import Control.Arrow ((***))
+import qualified Control.Monad.Fail as Fail
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Error
@@ -174,6 +175,9 @@ newtype TcM a = TcM {
            , MonadState Unifier
            , MonadReader TcMEnv
            )
+
+instance Fail.MonadFail TcM where
+    fail = TcM . lift . lift . lift . fail
 
 runTcM :: TcM a
        -> TyDefEnv

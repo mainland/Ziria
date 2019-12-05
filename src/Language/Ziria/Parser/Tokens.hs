@@ -9,8 +9,10 @@ module Language.Ziria.Parser.Tokens (
     Token(..)
   ) where
 
+import Data.Monoid ((<>))
 import Data.Symbol
 import Text.PrettyPrint.Mainland
+import Text.PrettyPrint.Mainland.Class (Pretty(..))
 
 data Token = Teof
            | TintConst (String, Integer)
