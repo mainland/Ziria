@@ -17,6 +17,7 @@
    permissions and limitations under the License.
 -}
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards, BangPatterns #-}
 
 module Vectorize where
@@ -29,6 +30,9 @@ import qualified AstLabelled as AstL
 
 import Outputable
 
+#if MIN_VERSION_base(4,11,0)
+import Prelude hiding ((<>))
+#endif /* MIN_VERSION_base(4,11,0) */
 import Text.PrettyPrint.HughesPJ
 
 import PpComp

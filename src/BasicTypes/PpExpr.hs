@@ -17,10 +17,14 @@
    permissions and limitations under the License.
 -}
 {-# OPTIONS_GHC -Wall -fno-warn-orphans -fno-warn-name-shadowing #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 -- | Pretty-printing type classes instances
 module PpExpr (nestingDepth, ppName, ppNameUniq, ppEs, ppBind) where
 
+#if MIN_VERSION_base(4,11,0)
+import Prelude hiding ((<>))
+#endif /* MIN_VERSION_base(4,11,0) */
 import Text.PrettyPrint.HughesPJ
 
 import AstExpr

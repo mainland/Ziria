@@ -109,7 +109,11 @@ module TcMonad (
   , liftIO
   ) where
 
+#if MIN_VERSION_base(4,11,0)
+import Prelude hiding (exp, (<>))
+#else /* !MIN_VERSION_base(4,11,0) */
 import Prelude hiding (exp)
+#endif /* MIN_VERSION_base(4,11,0) */
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative hiding (empty)
 #endif /* !MIN_VERSION_base(4,8,0) */

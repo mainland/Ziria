@@ -17,6 +17,7 @@
    permissions and limitations under the License.
 -}
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, DeriveGeneric, DeriveDataTypeable #-}
 
 {- This module defines datatypes that are used for lookup table generation,
@@ -25,6 +26,9 @@
 
 module LUTBasicTypes where 
 
+#if MIN_VERSION_base(4,11,0)
+import Prelude hiding ((<>))
+#endif /* MIN_VERSION_base(4,11,0) */
 import Outputable
 import Text.PrettyPrint.HughesPJ
 import Control.DeepSeq (NFData(..))

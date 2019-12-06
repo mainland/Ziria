@@ -16,9 +16,13 @@
    See the Apache Version 2.0 License for specific language governing
    permissions and limitations under the License.
 -}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Outputable where
 
+#if MIN_VERSION_base(4,11,0)
+import Prelude hiding ((<>))
+#endif /* MIN_VERSION_base(4,11,0) */
 import Text.PrettyPrint.HughesPJ
 import Data.Loc
 import qualified Data.Map as M
