@@ -50,6 +50,15 @@ matrix:
     - env: CABALVER=1.24 GHCVER=8.0.2 ALEXVER=3.1.7 HAPPYVER=1.19.5 COMPILER=gcc TRAVIS_TEST=pedantic
       compiler: gcc
       addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: CABALVER=2.0 GHCVER=8.2.2 ALEXVER=3.1.7 HAPPYVER=1.19.5 COMPILER=gcc TRAVIS_TEST=normal
+      compiler: gcc
+      addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: CABALVER=2.0 GHCVER=8.2.2 ALEXVER=3.1.7 HAPPYVER=1.19.5 COMPILER=gcc TRAVIS_TEST=perf
+      compiler: gcc
+      addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: CABALVER=2.0 GHCVER=8.2.2 ALEXVER=3.1.7 HAPPYVER=1.19.5 COMPILER=gcc TRAVIS_TEST=pedantic
+      compiler: gcc
+      addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
     - env: CABALVER=head GHCVER=head ALEXVER=3.1.7 HAPPYVER=1.19.5 COMPILER=gcc TRAVIS_TEST=normal
       compiler: gcc
       addons: {apt: {packages: [cabal-install-head,ghc-head,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
