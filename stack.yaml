@@ -1,0 +1,7 @@
+resolver: lts-9.21
+packages:
+- .
+local-bin-path: bin
+extra-deps:
+- language-c-quote-0.12.2.1
+- mainland-pretty-0.7.0.1
